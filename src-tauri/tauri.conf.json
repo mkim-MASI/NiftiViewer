@@ -32,5 +32,23 @@
     "targets": "all",
     "resources": [],
     "shortDescription": "Offline medical image and segmentation viewer"
+  },
+  "plugins": {
+    "cli": {
+      "description": "NIfTI image viewer",
+      "args": [
+        {
+          "name": "image",
+          "index": 1,
+          "takesValue": true
+        },
+        {
+          "name": "seg",
+          "short": "s",
+          "takesValue": true,
+          "multiple": true
+        }
+      ]
+    }
   }
 }

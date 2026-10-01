@@ -1,6 +1,9 @@
 import { Niivue, SLICE_TYPE } from '@niivue/niivue';
+import { getMatches } from '@tauri-apps/plugin-cli';
+import { readFile } from '@tauri-apps/plugin-fs';
 
 const $ = (s) => document.querySelector(s);
+
 
 /* =========================================================
    GLOBAL STATE
@@ -29,9 +32,7 @@ const palette = [
 function handleLocationChange(data) {
   const status = $('#status');
 
-  if (!status || !data?.vox) {
-    return;
-  }
+  if (!status || !data?.vox) return;
 
   const x = Math.round(data.vox[0]);
   const y = Math.round(data.vox[1]);
@@ -39,10 +40,6 @@ function handleLocationChange(data) {
 
   let intensity = null;
 
-  /*
-   * NiiVue versions differ slightly in the structure returned
-   * by onLocationChange, so handle several common forms.
-   */
   if (Array.isArray(data.values) && data.values.length > 0) {
     const first = data.values[0];
 
@@ -67,9 +64,7 @@ function handleLocationChange(data) {
     const n = Number(intensity);
 
     text += `   Intensity: ${
-      Number.isInteger(n)
-        ? n
-        : n.toFixed(2)
+      Number.isInteger(n) ? n : n.toFixed(2)
     }`;
   }
 
@@ -83,23 +78,25 @@ function handleLocationChange(data) {
 
 const nv = new Niivue({
   show3Dcrosshair: true,
-
   backColor: [0, 0, 0, 1],
-
   crosshairColor: [1, 0, 0, 1],
-
   isRadiologicalConvention: false,
-
   loadingText: '',
-
   onLocationChange: handleLocationChange
 });
 
 await nv.attachTo('gl');
 
 window.nv = nv;
-// true = nearest-neighbor interpolation
-// false = linear interpolation
+
+/*
+ * IMPORTANT:
+ *
+ * true = nearest-neighbor interpolation in NiiVue.
+ *
+ * This applies globally to the viewer and prevents smoothing
+ * of the base image and segmentation masks.
+ */
 nv.setInterpolation(true);
 
 
@@ -107,28 +104,15 @@ nv.setInterpolation(true);
    GENERAL HELPERS
 ========================================================= */
 
-function setBusy(
-  on,
-  title = 'Loading…',
-  detail = ''
-) {
-  $('#loading').classList.toggle(
-    'hidden',
-    !on
-  );
-
-  $('#loading-title').textContent =
-    title;
-
-  $('#loading-detail').textContent =
-    detail;
+function setBusy(on, title = 'Loading…', detail = '') {
+  $('#loading').classList.toggle('hidden', !on);
+  $('#loading-title').textContent = title;
+  $('#loading-detail').textContent = detail;
 }
 
 
 function fileOkay(file) {
-  return /\.nii(\.gz)?$/i.test(
-    file?.name || ''
-  );
+  return /\.nii(\.gz)?$/i.test(file?.name || '');
 }
 
 
@@ -140,8 +124,7 @@ function updateGL() {
 
 function resetView() {
   if (nv.scene?.pan2Dxyzmm) {
-    nv.scene.pan2Dxyzmm =
-      [0, 0, 0, 1];
+    nv.scene.pan2Dxyzmm = [0, 0, 0, 1];
   }
 
   nv.drawScene();
@@ -150,9 +133,7 @@ function resetView() {
 
 function clearVolumes() {
   while (nv.volumes.length) {
-    nv.removeVolume(
-      nv.volumes[0]
-    );
+    nv.removeVolume(nv.volumes[0]);
   }
 
   baseVolume = null;
@@ -161,24 +142,12 @@ function clearVolumes() {
 
 
 function hexToRgb(hex) {
-  const value =
-    hex.replace('#', '');
+  const value = hex.replace('#', '');
 
   return [
-    parseInt(
-      value.slice(0, 2),
-      16
-    ),
-
-    parseInt(
-      value.slice(2, 4),
-      16
-    ),
-
-    parseInt(
-      value.slice(4, 6),
-      16
-    )
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16)
   ];
 }
 
@@ -201,26 +170,32 @@ function formatSpacing(volume) {
 }
 
 
+function formatIntensity(value) {
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) return '—';
+
+  return Number.isInteger(n)
+    ? String(n)
+    : n.toFixed(2);
+}
+
+
 /* =========================================================
    INTENSITY MIN / MAX
 ========================================================= */
 
 function setIntensityRange(min, max) {
-  if (!baseVolume) {
-    return;
-  }
+  if (!baseVolume) return;
 
   min = Number(min);
   max = Number(max);
 
   if (
     !Number.isFinite(min) ||
-    !Number.isFinite(max)
+    !Number.isFinite(max) ||
+    min >= max
   ) {
-    return;
-  }
-
-  if (min >= max) {
     return;
   }
 
@@ -234,60 +209,21 @@ function setIntensityRange(min, max) {
 }
 
 
-function formatIntensity(value) {
-  const n = Number(value);
-
-  if (!Number.isFinite(n)) {
-    return '—';
-  }
-
-  if (Number.isInteger(n)) {
-    return String(n);
-  }
-
-  return n.toFixed(2);
-}
-
-
 function initializeIntensityControls(volume) {
-  if (!volume) {
-    return;
-  }
+  if (!volume) return;
 
-  /*
-   * Start from NiiVue's current display range.
-   */
   let min = Number(volume.cal_min);
   let max = Number(volume.cal_max);
 
-  if (!Number.isFinite(min)) {
-    min = 0;
-  }
-
-  if (!Number.isFinite(max)) {
-    max = min + 1;
-  }
-
-  if (max <= min) {
-    max = min + 1;
-  }
+  if (!Number.isFinite(min)) min = 0;
+  if (!Number.isFinite(max)) max = min + 1;
+  if (max <= min) max = min + 1;
 
   const range = max - min;
 
-  /*
-   * Give the sliders a little extra room outside the
-   * initial display range.
-   */
-  const sliderMin =
-    min - range * 0.25;
+  const sliderMin = min - range * 0.25;
+  const sliderMax = max + range * 0.25;
 
-  const sliderMax =
-    max + range * 0.25;
-
-  /*
-   * Choose a sensible step size for both CT-like integer
-   * images and floating-point quantitative images.
-   */
   let step = 1;
 
   if (range <= 1) {
@@ -298,45 +234,21 @@ function initializeIntensityControls(volume) {
     step = 0.1;
   }
 
-  $('#min-slider').min =
-    sliderMin;
+  $('#min-slider').min = sliderMin;
+  $('#min-slider').max = sliderMax;
+  $('#min-slider').step = step;
+  $('#min-slider').value = min;
 
-  $('#min-slider').max =
-    sliderMax;
+  $('#max-slider').min = sliderMin;
+  $('#max-slider').max = sliderMax;
+  $('#max-slider').step = step;
+  $('#max-slider').value = max;
 
-  $('#min-slider').step =
-    step;
+  $('#min-value').step = step;
+  $('#min-value').value = min;
 
-  $('#min-slider').value =
-    min;
-
-
-  $('#max-slider').min =
-    sliderMin;
-
-  $('#max-slider').max =
-    sliderMax;
-
-  $('#max-slider').step =
-    step;
-
-  $('#max-slider').value =
-    max;
-
-
-  $('#min-value').step =
-    step;
-
-  $('#min-value').value =
-    min;
-
-
-  $('#max-value').step =
-    step;
-
-  $('#max-value').value =
-    max;
-
+  $('#max-value').step = step;
+  $('#max-value').value = max;
 
   $('#window-range').textContent =
     `Display: ${formatIntensity(min)} to ${formatIntensity(max)}`;
@@ -344,41 +256,23 @@ function initializeIntensityControls(volume) {
 
 
 function updateIntensityFromInputs() {
-  let min =
-    Number($('#min-value').value);
-
-  let max =
-    Number($('#max-value').value);
+  const min = Number($('#min-value').value);
+  const max = Number($('#max-value').value);
 
   if (
     !Number.isFinite(min) ||
-    !Number.isFinite(max)
+    !Number.isFinite(max) ||
+    min >= max
   ) {
     return;
   }
 
-  /*
-   * Don't allow the display range to collapse or invert.
-   */
-  if (min >= max) {
-    return;
-  }
-
-  /*
-   * Numerical entry is allowed to expand the slider range.
-   */
-  if (
-    min <
-    Number($('#min-slider').min)
-  ) {
+  if (min < Number($('#min-slider').min)) {
     $('#min-slider').min = min;
     $('#max-slider').min = min;
   }
 
-  if (
-    max >
-    Number($('#max-slider').max)
-  ) {
+  if (max > Number($('#max-slider').max)) {
     $('#min-slider').max = max;
     $('#max-slider').max = max;
   }
@@ -386,10 +280,7 @@ function updateIntensityFromInputs() {
   $('#min-slider').value = min;
   $('#max-slider').value = max;
 
-  setIntensityRange(
-    min,
-    max
-  );
+  setIntensityRange(min, max);
 }
 
 
@@ -398,24 +289,18 @@ function updateIntensityFromInputs() {
 ========================================================= */
 
 function applySegColor(item) {
-  const [r, g, b] =
-    hexToRgb(item.color);
+  const [r, g, b] = hexToRgb(item.color);
 
   /*
-   * Binary label LUT:
-   *
-   * 0 = transparent background
-   * 1 = segmentation
+   * Label 0 = transparent background
+   * Label 1 = segmentation
    */
   const lut = {
     R: [0, r],
     G: [0, g],
     B: [0, b],
-
     A: [0, 255],
-
     I: [0, 1],
-
     labels: [
       'background',
       item.name
@@ -423,21 +308,12 @@ function applySegColor(item) {
   };
 
   if (
-    typeof item.volume
-      .setColormapLabel === 'function'
+    typeof item.volume.setColormapLabel === 'function'
   ) {
-    item.volume.setColormapLabel(
-      lut
-    );
+    item.volume.setColormapLabel(lut);
   } else {
-    item.volume.colormapLabel =
-      lut;
+    item.volume.colormapLabel = lut;
   }
-
-  /*
-   * Segmentation labels should NEVER be interpolated.
-   */
-  item.volume.interpType = 0;
 }
 
 
@@ -446,26 +322,18 @@ function applySegColor(item) {
 ========================================================= */
 
 function renderSegments() {
-  const root =
-    $('#segments');
+  const root = $('#segments');
 
   root.innerHTML = '';
 
   $('#seg-count').textContent =
     String(segmentations.length);
 
-  const has =
-    segmentations.length > 0;
+  const has = segmentations.length > 0;
 
-  $('#show-all').disabled =
-    !has;
-
-  $('#hide-all').disabled =
-    !has;
-
-  $('#remove-all').disabled =
-    !has;
-
+  $('#show-all').disabled = !has;
+  $('#hide-all').disabled = !has;
+  $('#remove-all').disabled = !has;
 
   if (!has) {
     root.innerHTML =
@@ -474,16 +342,10 @@ function renderSegments() {
     return;
   }
 
+  for (const item of segmentations) {
+    const row = document.createElement('div');
 
-  for (
-    const item of segmentations
-  ) {
-    const row =
-      document.createElement('div');
-
-    row.className =
-      'seg-row';
-
+    row.className = 'seg-row';
 
     row.innerHTML = `
       <div class="seg-head">
@@ -505,25 +367,18 @@ function renderSegments() {
         <span
           class="seg-name"
           title="${item.name}"
-        >
-          ${item.name}
-        </span>
+        >${item.name}</span>
 
         <button
           class="remove"
           title="Remove segmentation"
-        >
-          ✕
-        </button>
+        >✕</button>
 
       </div>
 
-
       <div class="seg-opacity">
 
-        <span>
-          Opacity
-        </span>
+        <span>Opacity</span>
 
         <input
           class="opacity"
@@ -541,94 +396,52 @@ function renderSegments() {
       </div>
     `;
 
-
-    /*
-     * Visibility
-     */
-
     row
       .querySelector('.visible')
-      .addEventListener(
-        'change',
-        (e) => {
-          item.visible =
-            e.target.checked;
+      .addEventListener('change', (e) => {
+        item.visible = e.target.checked;
 
-          item.volume.opacity =
-            item.visible
-              ? item.opacity
-              : 0;
+        item.volume.opacity =
+          item.visible
+            ? item.opacity
+            : 0;
 
-          updateGL();
-        }
-      );
-
-
-    /*
-     * Color
-     */
+        updateGL();
+      });
 
     row
       .querySelector('.color')
-      .addEventListener(
-        'input',
-        (e) => {
-          item.color =
-            e.target.value;
+      .addEventListener('input', (e) => {
+        item.color = e.target.value;
 
-          applySegColor(item);
-
-          updateGL();
-        }
-      );
-
-
-    /*
-     * Opacity
-     */
+        applySegColor(item);
+        updateGL();
+      });
 
     row
       .querySelector('.opacity')
-      .addEventListener(
-        'input',
-        (e) => {
-          item.opacity =
-            Number(
-              e.target.value
-            );
+      .addEventListener('input', (e) => {
+        item.opacity =
+          Number(e.target.value);
 
-          row
-            .querySelector(
-              '.seg-opacity b'
-            )
-            .textContent =
-              `${Math.round(item.opacity * 100)}%`;
+        row
+          .querySelector('.seg-opacity b')
+          .textContent =
+            `${Math.round(item.opacity * 100)}%`;
 
-          if (item.visible) {
-            item.volume.opacity =
-              item.opacity;
-          }
-
-          updateGL();
+        if (item.visible) {
+          item.volume.opacity =
+            item.opacity;
         }
-      );
 
-
-    /*
-     * Remove
-     */
+        updateGL();
+      });
 
     row
       .querySelector('.remove')
-      .addEventListener(
-        'click',
-        () => {
-          removeSegmentation(
-            item.id
-          );
-        }
-      );
-
+      .addEventListener('click', () => {
+        removeSegmentation(item.id);
+      });
 
     root.append(row);
   }
@@ -637,6 +450,9 @@ function renderSegments() {
 
 /* =========================================================
    LOAD BASE IMAGE
+
+   IMPORTANT:
+   Both the GUI and CLI eventually call this SAME function.
 ========================================================= */
 
 async function loadBaseImage(file) {
@@ -646,27 +462,18 @@ async function loadBaseImage(file) {
     );
   }
 
-
   setBusy(
     true,
     'Loading image…',
     file.name
   );
 
-
   try {
-
     clearVolumes();
 
+    await nv.loadFromFile(file);
 
-    await nv.loadFromFile(
-      file
-    );
-
-
-    baseVolume =
-      nv.volumes[0];
-
+    baseVolume = nv.volumes[0];
 
     if (!baseVolume) {
       throw new Error(
@@ -674,34 +481,11 @@ async function loadBaseImage(file) {
       );
     }
 
-
-    /*
-     * Base image settings
-     */
-
-    baseVolume.colormap =
-      'gray';
-
-    /*
-     * Disable interpolation.
-     *
-     * This gives you true nearest-neighbor voxel rendering.
-     */
-    baseVolume.interpType = 0;
-
-    /*
-     * Initialize Min / Max controls using the image's
-     * current NiiVue display range.
-     */
+    baseVolume.colormap = 'gray';
 
     initializeIntensityControls(
       baseVolume
     );
-
-
-    /*
-     * Update sidebar
-     */
 
     $('#image-name').textContent =
       file.name;
@@ -712,67 +496,49 @@ async function loadBaseImage(file) {
     $('#image-spacing').textContent =
       formatSpacing(baseVolume);
 
-
     $('#status').textContent =
       file.name;
-
 
     $('#empty-state')
       .classList
       .add('hidden');
 
-
     $('#add-seg').disabled =
       false;
 
-
     renderSegments();
-
     updateGL();
 
-
   } catch (err) {
-
     console.error(err);
 
     alert(
       `Could not load image:\n${err.message || err}`
     );
 
-
   } finally {
-
     setBusy(false);
-
   }
 }
 
 
 /* =========================================================
    LOAD SEGMENTATIONS
+
+   Also shared by GUI and CLI.
 ========================================================= */
 
-async function addSegmentations(
-  files
-) {
-
+async function addSegmentations(files) {
   if (!baseVolume) {
     return alert(
       'Open a base image first.'
     );
   }
 
-
   const valid =
-    [...files].filter(
-      fileOkay
-    );
+    [...files].filter(fileOkay);
 
-
-  if (!valid.length) {
-    return;
-  }
-
+  if (!valid.length) return;
 
   setBusy(
     true,
@@ -780,30 +546,19 @@ async function addSegmentations(
     ''
   );
 
-
   try {
-
-    for (
-      const file of valid
-    ) {
-
+    for (const file of valid) {
       $('#loading-detail')
         .textContent =
           file.name;
 
-
       const before =
         nv.volumes.length;
 
-
-      await nv.loadFromFile(
-        file
-      );
-
+      await nv.loadFromFile(file);
 
       const volume =
         nv.volumes[before];
-
 
       if (!volume) {
         throw new Error(
@@ -811,11 +566,8 @@ async function addSegmentations(
         );
       }
 
-
       const item = {
-
-        id:
-          nextSegId++,
+        id: nextSegId++,
 
         name:
           file.name.replace(
@@ -831,58 +583,30 @@ async function addSegmentations(
             palette.length
           ],
 
-        opacity:
-          0.55,
-
-        visible:
-          true
-
+        opacity: 0.55,
+        visible: true
       };
-
-
-      /*
-       * Segmentation rendering
-       */
 
       volume.opacity =
         item.opacity;
 
-      /*
-       * Never interpolate segmentation masks.
-       */
+      applySegColor(item);
 
-
-     volume.interpType = 0;
-
-      applySegColor(
-        item
-      );
-
-
-      segmentations.push(
-        item
-      );
+      segmentations.push(item);
     }
 
-
     renderSegments();
-
     updateGL();
 
-
   } catch (err) {
-
     console.error(err);
 
     alert(
       `Could not load segmentation:\n${err.message || err}`
     );
 
-
   } finally {
-
     setBusy(false);
-
   }
 }
 
@@ -891,49 +615,177 @@ async function addSegmentations(
    REMOVE SEGMENTATION
 ========================================================= */
 
-function removeSegmentation(
-  id
-) {
-
+function removeSegmentation(id) {
   const index =
     segmentations.findIndex(
       (x) => x.id === id
     );
 
-
-  if (index < 0) {
-    return;
-  }
-
+  if (index < 0) return;
 
   nv.removeVolume(
-    segmentations[index]
-      .volume
+    segmentations[index].volume
   );
-
 
   segmentations.splice(
     index,
     1
   );
 
-
   renderSegments();
-
   updateGL();
 }
 
 
 /* =========================================================
-   FILE BUTTONS
+   CLI SUPPORT
+========================================================= */
+
+/*
+ * Extract the filename from either:
+ *
+ * /Users/me/data/image.nii.gz
+ *
+ * or:
+ *
+ * C:\\data\\image.nii.gz
+ */
+function filenameFromPath(path) {
+  return String(path)
+    .replace(/\\/g, '/')
+    .split('/')
+    .pop();
+}
+
+
+/*
+ * Convert a filesystem path into a browser File.
+ *
+ * This is the key trick that lets the CLI reuse the exact
+ * same NiiVue loading code as the GUI.
+ */
+async function fileFromPath(path) {
+  const bytes =
+    await readFile(path);
+
+  return new File(
+    [bytes],
+    filenameFromPath(path),
+    {
+      type: 'application/octet-stream'
+    }
+  );
+}
+
+
+/*
+ * CLI syntax:
+ *
+ * NiftiViewer image.nii.gz
+ *
+ * NiftiViewer image.nii.gz \
+ *   --seg liver.nii.gz \
+ *   --seg spleen.nii.gz
+ */
+async function handleCommandLine() {
+  try {
+    const matches =
+      await getMatches();
+
+    const imageArg =
+      matches.args?.image?.value;
+
+    const segArg =
+      matches.args?.seg?.value;
+
+
+    /*
+     * No image argument:
+     *
+     * Do absolutely nothing.
+     *
+     * The application therefore behaves exactly like the
+     * normal GUI viewer.
+     */
+    if (
+      typeof imageArg !== 'string' ||
+      !imageArg
+    ) {
+      return;
+    }
+
+
+    /*
+     * Load base image.
+     */
+
+    const imageFile =
+      await fileFromPath(
+        imageArg
+      );
+
+    await loadBaseImage(
+      imageFile
+    );
+
+
+    /*
+     * --seg is configured as multiple:true, so Tauri can
+     * return an array when one or more masks are supplied.
+     */
+    if (!segArg) {
+      return;
+    }
+
+
+    const segPaths =
+      Array.isArray(segArg)
+        ? segArg
+        : [segArg];
+
+
+    const segFiles = [];
+
+    for (
+      const path of segPaths
+    ) {
+      const file =
+        await fileFromPath(path);
+
+      segFiles.push(file);
+    }
+
+
+    if (segFiles.length) {
+      await addSegmentations(
+        segFiles
+      );
+    }
+
+  } catch (err) {
+    console.error(
+      'CLI loading failed:',
+      err
+    );
+
+    alert(
+      `Could not open command-line files:\n${err.message || err}`
+    );
+  }
+}
+
+
+/* =========================================================
+   GUI FILE BUTTONS
+
+   These work exactly as before.
 ========================================================= */
 
 $('#open-image')
   .addEventListener(
     'click',
     () => {
-      $('#image-input')
-        .click();
+      $('#image-input').click();
     }
   );
 
@@ -942,8 +794,7 @@ $('#add-seg')
   .addEventListener(
     'click',
     () => {
-      $('#seg-input')
-        .click();
+      $('#seg-input').click();
     }
   );
 
@@ -952,17 +803,13 @@ $('#image-input')
   .addEventListener(
     'change',
     async (e) => {
-
-      if (
-        e.target.files[0]
-      ) {
+      if (e.target.files[0]) {
         await loadBaseImage(
           e.target.files[0]
         );
       }
 
       e.target.value = '';
-
     }
   );
 
@@ -971,13 +818,11 @@ $('#seg-input')
   .addEventListener(
     'change',
     async (e) => {
-
       await addSegmentations(
         e.target.files
       );
 
       e.target.value = '';
-
     }
   );
 
@@ -990,22 +835,13 @@ $('#min-slider')
   .addEventListener(
     'input',
     (e) => {
-
       let min =
-        Number(
-          e.target.value
-        );
+        Number(e.target.value);
 
       const max =
         Number(
-          $('#max-value')
-            .value
+          $('#max-value').value
         );
-
-
-      /*
-       * Prevent min from crossing max.
-       */
 
       if (min >= max) {
         min =
@@ -1014,20 +850,16 @@ $('#min-slider')
             e.target.step || 1
           );
 
-        e.target.value =
-          min;
+        e.target.value = min;
       }
-
 
       $('#min-value').value =
         min;
-
 
       setIntensityRange(
         min,
         max
       );
-
     }
   );
 
@@ -1036,22 +868,13 @@ $('#max-slider')
   .addEventListener(
     'input',
     (e) => {
-
       const min =
         Number(
-          $('#min-value')
-            .value
+          $('#min-value').value
         );
 
       let max =
-        Number(
-          e.target.value
-        );
-
-
-      /*
-       * Prevent max from crossing min.
-       */
+        Number(e.target.value);
 
       if (max <= min) {
         max =
@@ -1060,20 +883,16 @@ $('#max-slider')
             e.target.step || 1
           );
 
-        e.target.value =
-          max;
+        e.target.value = max;
       }
-
 
       $('#max-value').value =
         max;
-
 
       setIntensityRange(
         min,
         max
       );
-
     }
   );
 
@@ -1082,35 +901,28 @@ $('#min-value')
   .addEventListener(
     'change',
     () => {
-
       let min =
         Number(
-          $('#min-value')
-            .value
+          $('#min-value').value
         );
 
       const max =
         Number(
-          $('#max-value')
-            .value
+          $('#max-value').value
         );
-
 
       if (min >= max) {
         min =
           max -
           Number(
-            $('#min-value')
-              .step || 1
+            $('#min-value').step || 1
           );
 
         $('#min-value').value =
           min;
       }
 
-
       updateIntensityFromInputs();
-
     }
   );
 
@@ -1119,35 +931,28 @@ $('#max-value')
   .addEventListener(
     'change',
     () => {
-
       const min =
         Number(
-          $('#min-value')
-            .value
+          $('#min-value').value
         );
 
       let max =
         Number(
-          $('#max-value')
-            .value
+          $('#max-value').value
         );
-
 
       if (max <= min) {
         max =
           min +
           Number(
-            $('#max-value')
-              .step || 1
+            $('#max-value').step || 1
           );
 
         $('#max-value').value =
           max;
       }
 
-
       updateIntensityFromInputs();
-
     }
   );
 
@@ -1162,63 +967,45 @@ for (
     '[data-view]'
   )
 ) {
-
   button.addEventListener(
     'click',
     () => {
-
       const view =
         Number(
           button.dataset.view
         );
 
-
       if (view === 0) {
-
         nv.setSliceType(
           SLICE_TYPE.AXIAL
         );
 
-      } else if (
-        view === 1
-      ) {
-
+      } else if (view === 1) {
         nv.setSliceType(
           SLICE_TYPE.CORONAL
         );
 
-      } else if (
-        view === 2
-      ) {
-
+      } else if (view === 2) {
         nv.setSliceType(
           SLICE_TYPE.SAGITTAL
         );
 
       } else {
-
         nv.setSliceType(
           SLICE_TYPE.MULTIPLANAR
         );
-
       }
-
 
       document
         .querySelectorAll(
           '[data-view]'
         )
-        .forEach(
-          (b) => {
-
-            b.classList.toggle(
-              'active',
-              b === button
-            );
-
-          }
-        );
-
+        .forEach((b) => {
+          b.classList.toggle(
+            'active',
+            b === button
+          );
+        });
     }
   );
 }
@@ -1243,25 +1030,17 @@ $('#show-all')
   .addEventListener(
     'click',
     () => {
-
       for (
-        const item of
-        segmentations
+        const item of segmentations
       ) {
-
-        item.visible =
-          true;
+        item.visible = true;
 
         item.volume.opacity =
           item.opacity;
-
       }
 
-
       renderSegments();
-
       updateGL();
-
     }
   );
 
@@ -1270,25 +1049,15 @@ $('#hide-all')
   .addEventListener(
     'click',
     () => {
-
       for (
-        const item of
-        segmentations
+        const item of segmentations
       ) {
-
-        item.visible =
-          false;
-
-        item.volume.opacity =
-          0;
-
+        item.visible = false;
+        item.volume.opacity = 0;
       }
 
-
       renderSegments();
-
       updateGL();
-
     }
   );
 
@@ -1297,26 +1066,19 @@ $('#remove-all')
   .addEventListener(
     'click',
     () => {
-
       for (
         const item of
         [...segmentations]
       ) {
-
         nv.removeVolume(
           item.volume
         );
-
       }
-
 
       segmentations = [];
 
-
       renderSegments();
-
       updateGL();
-
     }
   );
 
@@ -1328,38 +1090,27 @@ $('#remove-all')
 document.addEventListener(
   'keydown',
   (e) => {
-
     if (
-      e.target.matches(
-        'input'
-      )
+      e.target.matches('input')
     ) {
       return;
     }
 
-
     if (
-      e.key.toLowerCase() ===
-      'r'
+      e.key.toLowerCase() === 'r'
     ) {
       resetView();
     }
 
-
     if (
-      '1234'.includes(
-        e.key
-      )
+      '1234'.includes(e.key)
     ) {
-
       document
         .querySelector(
           `[data-view="${Number(e.key) - 1}"]`
         )
         ?.click();
-
     }
-
   }
 );
 
@@ -1373,3 +1124,13 @@ renderSegments();
 nv.setSliceType(
   SLICE_TYPE.MULTIPLANAR
 );
+
+
+/*
+ * Check CLI arguments LAST, after NiiVue and all UI
+ * components are initialized.
+ *
+ * If the application was opened normally, this simply
+ * returns and the GUI behaves exactly as before.
+ */
+await handleCommandLine();

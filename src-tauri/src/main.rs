@@ -1,1 +1,3 @@
-fn main() { totalseg_viewer_lib::run(); }
+fn main() {
+    totalseg_viewer_lib::run();
+}

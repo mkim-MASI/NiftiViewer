@@ -1,1 +1,1 @@
-{"main-capability":{"identifier":"main-capability","description":"Main desktop window permissions","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]}}
+{"desktop-capability":{"identifier":"desktop-capability","description":"","local":true,"windows":["main"],"permissions":["cli:default"],"platforms":["macOS","windows","linux"]},"main-capability":{"identifier":"main-capability","description":"Main desktop window permissions","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]}}

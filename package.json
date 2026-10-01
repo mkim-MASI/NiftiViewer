@@ -11,7 +11,9 @@
   "dependencies": {
     "@niivue/niivue": "0.65.0",
     "@tauri-apps/api": "2.11.0",
-    "@tauri-apps/plugin-dialog": "^2.0.0"
+    "@tauri-apps/plugin-cli": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-fs": "^2.6.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
