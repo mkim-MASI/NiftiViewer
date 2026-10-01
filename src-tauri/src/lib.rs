@@ -604,6 +604,46 @@ fn read_binary_file(path: String) -> Result<Vec<u8>> {
 }
 
 /* ============================================================
+RESOLVE CLI PATH
+
+Converts relative command-line paths into absolute paths using
+the working directory from which NiftiViewer was launched.
+
+Examples:
+
+    ct.nii.gz
+    ./ct.nii.gz
+    ../test_data/ct.nii.gz
+
+become absolute filesystem paths before the frontend passes
+them to Tauri's filesystem plugin.
+============================================================ */
+
+#[tauri::command]
+fn resolve_cli_path(path: String) -> Result<String> {
+    let path = PathBuf::from(path);
+
+    let absolute = if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+
+    /*
+     * canonicalize() resolves:
+     *
+     *   .
+     *   ..
+     *   symlinks
+     *
+     * and also verifies that the path exists.
+     */
+    let canonical = absolute.canonicalize()?;
+
+    Ok(canonical.to_string_lossy().into_owned())
+}
+
+/* ============================================================
 TAURI APPLICATION
 ============================================================ */
 
@@ -618,7 +658,8 @@ pub fn run() {
             list_cases,
             import_dataset,
             remove_dataset,
-            read_binary_file
+            read_binary_file,
+            resolve_cli_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running TotalSegmentator Viewer");

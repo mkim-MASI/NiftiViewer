@@ -3,5 +3,16 @@
   "identifier": "main-capability",
   "description": "Main desktop window permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
+  ]
 }

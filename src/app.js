@@ -1,6 +1,7 @@
 import { Niivue, SLICE_TYPE } from '@niivue/niivue';
 import { getMatches } from '@tauri-apps/plugin-cli';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 
 const $ = (s) => document.querySelector(s);
 
@@ -665,12 +666,17 @@ function filenameFromPath(path) {
  * same NiiVue loading code as the GUI.
  */
 async function fileFromPath(path) {
+  const absolutePath = await invoke(
+    'resolve_cli_path',
+    { path }
+  );
+
   const bytes =
-    await readFile(path);
+    await readFile(absolutePath);
 
   return new File(
     [bytes],
-    filenameFromPath(path),
+    filenameFromPath(absolutePath),
     {
       type: 'application/octet-stream'
     }
