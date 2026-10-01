@@ -1,0 +1,129 @@
+name: Build NiftiViewer
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - windows
+          - macos
+          - both
+
+
+jobs:
+
+  # ============================================================
+  # macOS
+  # ============================================================
+
+  build-macos:
+    if: ${{ inputs.platform == 'macos' || inputs.platform == 'both' }}
+
+    permissions:
+      contents: read
+
+    runs-on: macos-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      - name: Build macOS application
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target aarch64-apple-darwin
+
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiftiViewer-macOS
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/**
+
+
+  # ============================================================
+  # Windows
+  # ============================================================
+
+  build-windows:
+    if: ${{ inputs.platform == 'windows' || inputs.platform == 'both' }}
+
+    permissions:
+      contents: read
+
+    runs-on: windows-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+
+      - name: Install dependencies
+        run: npm ci
+
+
+      - name: Build Windows NSIS installer
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --bundles nsis
+
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: NiftiViewer-Windows
+          path: |
+            src-tauri/target/release/bundle/nsis/**
+            src-tauri/target/release/NiftiViewer.exe
