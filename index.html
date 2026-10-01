@@ -1,0 +1,382 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>NIfTI Image Viewer</title>
+
+  <link
+    rel="stylesheet"
+    href="/src/style.css"
+  />
+</head>
+
+<body>
+
+  <!-- =========================
+       TOP TOOLBAR
+  ========================== -->
+
+  <header>
+
+    <strong>
+      NIfTI Image Viewer
+      <span class="badge">NiiVue</span>
+    </strong>
+
+    <button id="open-image">
+      Open image
+    </button>
+
+    <button
+      id="add-seg"
+      disabled
+    >
+      + Add segmentation
+    </button>
+
+    <!-- Hidden file inputs -->
+
+    <input
+      id="image-input"
+      type="file"
+      accept=".nii,.nii.gz"
+      hidden
+    />
+
+    <input
+      id="seg-input"
+      type="file"
+      accept=".nii,.nii.gz"
+      multiple
+      hidden
+    />
+
+    <span class="sep"></span>
+
+    <!-- View controls -->
+
+    <div class="view-buttons">
+
+      <button data-view="0">
+        Axial
+      </button>
+
+      <button data-view="1">
+        Coronal
+      </button>
+
+      <button data-view="2">
+        Sagittal
+      </button>
+
+      <button
+        data-view="3"
+        class="active"
+      >
+        Multiplanar
+      </button>
+
+    </div>
+
+    <span class="spacer"></span>
+
+    <button id="reset">
+      Reset view
+    </button>
+
+  </header>
+
+
+  <!-- =========================
+       MAIN APPLICATION
+  ========================== -->
+
+  <main>
+
+
+    <!-- =========================
+         NIIVUE VIEWER
+    ========================== -->
+
+    <section class="viewer">
+
+      <canvas id="gl"></canvas>
+
+
+      <!-- Initial empty state -->
+
+      <div id="empty-state">
+
+        <b>
+          Open a NIfTI image to begin
+        </b>
+
+        <span>
+          .nii and .nii.gz are supported
+        </span>
+
+      </div>
+
+
+      <!-- Loading overlay -->
+
+      <div
+        id="loading"
+        class="hidden"
+      >
+
+        <div class="loading-card">
+
+          <div class="spinner"></div>
+
+          <div>
+
+            <b id="loading-title">
+              Loading…
+            </b>
+
+            <div id="loading-detail"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!--
+        This gets updated by onLocationChange().
+        It will eventually display something like:
+
+        Voxel: 123, 152, 71   Intensity: -84
+      -->
+
+      <div id="status">
+        No image loaded
+      </div>
+
+
+      <div id="help">
+        1–4 views · R reset
+      </div>
+
+    </section>
+
+
+    <!-- =========================
+         SIDEBAR
+    ========================== -->
+
+    <aside>
+
+
+      <!-- BASE IMAGE -->
+
+      <div class="sidebar-title">
+        <strong>Base image</strong>
+      </div>
+
+
+      <div class="image-card">
+
+        <div>
+
+          <span>File</span>
+
+          <b id="image-name">
+            —
+          </b>
+
+        </div>
+
+
+        <div>
+
+          <span>Dimensions</span>
+
+          <b id="image-dims">
+            —
+          </b>
+
+        </div>
+
+
+        <div>
+
+          <span>Spacing</span>
+
+          <b id="image-spacing">
+            —
+          </b>
+
+        </div>
+
+      </div>
+
+
+      <!-- =========================
+           INTENSITY WINDOW
+      ========================== -->
+
+      <div class="sidebar-title">
+
+        <strong>
+          Intensity Window
+        </strong>
+
+      </div>
+
+
+      <div class="window-card">
+
+
+        <!-- MINIMUM -->
+
+        <div class="window-row">
+
+          <span>
+            Min
+          </span>
+
+          <input
+            id="min-slider"
+            type="range"
+            min="-1000"
+            max="3000"
+            step="1"
+            value="-1000"
+          />
+
+          <input
+            id="min-value"
+            type="number"
+            value="-1000"
+            step="1"
+          />
+
+        </div>
+
+
+        <!-- MAXIMUM -->
+
+        <div class="window-row">
+
+          <span>
+            Max
+          </span>
+
+          <input
+            id="max-slider"
+            type="range"
+            min="-1000"
+            max="3000"
+            step="1"
+            value="1000"
+          />
+
+          <input
+            id="max-value"
+            type="number"
+            value="1000"
+            step="1"
+          />
+
+        </div>
+
+
+        <!-- Current display range -->
+
+        <div id="window-range">
+          Display: —
+        </div>
+
+      </div>
+
+
+      <!-- =========================
+           SEGMENTATIONS
+      ========================== -->
+
+      <div class="sidebar-title">
+
+        <strong>
+          Segmentations
+        </strong>
+
+        <span id="seg-count">
+          0
+        </span>
+
+      </div>
+
+
+      <div class="hint">
+        Add one or more NIfTI masks.
+        Each file is an independent overlay
+        with its own visibility, color,
+        and opacity.
+      </div>
+
+
+      <!-- Segmentation rows are created
+           dynamically by app.js -->
+
+      <div id="segments">
+
+        <div class="empty-list">
+          No segmentations loaded.
+        </div>
+
+      </div>
+
+
+      <!-- Segmentation global controls -->
+
+      <div class="sidebar-footer">
+
+        <button
+          id="show-all"
+          disabled
+        >
+          Show all
+        </button>
+
+        <button
+          id="hide-all"
+          disabled
+        >
+          Hide all
+        </button>
+
+        <button
+          id="remove-all"
+          disabled
+        >
+          Remove all
+        </button>
+
+      </div>
+
+
+    </aside>
+
+  </main>
+
+
+  <!-- =========================
+       APPLICATION CODE
+  ========================== -->
+
+  <script
+    type="module"
+    src="/src/app.js"
+  ></script>
+
+</body>
+</html>

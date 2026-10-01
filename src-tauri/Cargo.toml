@@ -1,0 +1,23 @@
+[package]
+name = "NiftiViewer"
+version = "0.1.0"
+description = "Offline Medical Image viewer"
+authors = ["Michael E. Kim"]
+edition = "2021"
+
+[lib]
+name = "totalseg_viewer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+nifti = { version = "0.17", features = ["ndarray_volumes"] }
+ndarray = "0.16"
+uuid = { version = "1", features = ["v4"] }

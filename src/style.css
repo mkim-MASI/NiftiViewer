@@ -1,0 +1,39 @@
+*{box-sizing:border-box}html,body{margin:0;height:100%;font:14px system-ui,-apple-system,"Segoe UI",sans-serif;background:#101318;color:#e8edf2}body{display:flex;flex-direction:column}header{min-height:58px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #303640;background:#171b22}.badge{font-size:10px;padding:2px 5px;border:1px solid #556171;border-radius:4px;color:#bfc8d4}button,input{font:inherit}button{background:#252c36;color:#e8edf2;border:1px solid #3a4451;border-radius:5px;padding:7px 10px;cursor:pointer}button:hover:not(:disabled){background:#303947}button:disabled{opacity:.35;cursor:default}button.active{outline:2px solid #8da2ba;background:#354151}.sep{width:1px;height:28px;background:#343b45}.spacer{flex:1}.view-buttons{display:flex;gap:4px}main{min-height:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr)360px}.viewer{position:relative;min-width:0;overflow:hidden}canvas{width:100%;height:100%;display:block}#status,#help{position:absolute;bottom:10px;background:#000b;padding:6px 9px;border-radius:4px;pointer-events:none}#status{left:10px;font-family:ui-monospace,monospace;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#help{right:10px;color:#bfc8d4;font-size:12px}#empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;pointer-events:none;color:#cbd5e1}#empty-state span{color:#7f8a96;font-size:12px}#empty-state.hidden{display:none}#loading{position:absolute;inset:0;background:#0007;display:flex;align-items:center;justify-content:center;z-index:10}#loading.hidden{display:none}.loading-card{min-width:280px;background:#171b22;border:1px solid #3a4451;border-radius:10px;padding:18px 22px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px #0009}.spinner{width:24px;height:24px;border:3px solid #3d4652;border-top-color:#dce6f2;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}#loading-detail{margin-top:4px;color:#9ba7b4;font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}aside{overflow:hidden;display:flex;flex-direction:column;border-left:1px solid #303640;background:#171b22;padding:12px;gap:10px}.sidebar-title{display:flex;justify-content:space-between;align-items:center}.sidebar-title span{font-size:12px;color:#aeb8c4}.image-card{display:grid;gap:6px;padding:10px;background:#11151b;border:1px solid #2c333d;border-radius:7px}.image-card>div{display:grid;grid-template-columns:82px minmax(0,1fr);gap:8px}.image-card span{color:#8995a3}.image-card b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hint{font-size:12px;color:#9ba7b4;line-height:1.4}#segments{overflow:auto;flex:1;border-top:1px solid #262d36}.empty-list{padding:18px 4px;color:#7f8a96;font-size:12px}.seg-row{padding:10px 3px;border-bottom:1px solid #262d36}.seg-head{display:grid;grid-template-columns:20px 28px minmax(0,1fr) 32px;gap:7px;align-items:center}.seg-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.seg-head .color{width:26px;height:26px;padding:0;border:0;background:transparent}.seg-head .remove{padding:4px 7px}.seg-opacity{display:grid;grid-template-columns:50px minmax(0,1fr) 38px;gap:7px;align-items:center;margin:8px 0 0 55px;color:#8995a3;font-size:11px}.seg-opacity input{width:100%}.seg-opacity b{font-weight:500;text-align:right;color:#bfc8d4}.sidebar-footer{display:flex;gap:6px;padding-top:4px;border-top:1px solid #303640}.sidebar-footer button{flex:1;font-size:12px;padding:6px 5px}@media(max-width:850px){main{grid-template-columns:minmax(0,1fr)300px}header{flex-wrap:wrap}.spacer{display:none}}@media(max-width:680px){main{grid-template-columns:1fr}aside{position:absolute;right:0;top:58px;bottom:0;width:300px;z-index:5;background:#171b22f2}#help{display:none}}
+.window-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  background: #11151b;
+  border: 1px solid #2c333d;
+  border-radius: 7px;
+}
+
+.window-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 72px;
+  gap: 8px;
+  align-items: center;
+}
+
+.window-row span {
+  color: #8995a3;
+  font-size: 12px;
+}
+
+.window-row input[type="range"] {
+  width: 100%;
+}
+
+.window-row input[type="number"] {
+  width: 72px;
+  padding: 5px;
+  background: #171b22;
+  color: #e8edf2;
+  border: 1px solid #3a4451;
+  border-radius: 4px;
+}
+
+#window-range {
+  color: #8995a3;
+  font-size: 11px;
+}
