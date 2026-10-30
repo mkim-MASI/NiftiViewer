@@ -83,7 +83,8 @@ const nv = new Niivue({
   crosshairColor: [1, 0, 0, 1],
   isRadiologicalConvention: false,
   loadingText: '',
-  onLocationChange: handleLocationChange
+  onLocationChange: handleLocationChange,
+  multiplanarForceRender: true,
 });
 
 await nv.attachTo('gl');
